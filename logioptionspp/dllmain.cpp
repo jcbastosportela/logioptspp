@@ -3,12 +3,56 @@
 #include <winnt.h>
 #include <detours.h>
 #include <iostream>
+#include <ntstatus.h>  // Include the header for NTSTATUS values
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <mutex>
+
+class Logger {
+private:
+    Logger() {
+        // Open the log file for writing
+        logFile.open("log.txt", std::ios::app);
+    }
+
+    ~Logger() {
+        // Close the log file
+        if (logFile.is_open()) {
+            logFile.close();
+        }
+    }
+
+    // Declare private copy constructor and assignment operator to prevent copies
+    Logger(const Logger&) = delete;
+    Logger& operator=(const Logger&) = delete;
+
+public:
+    static Logger& getInstance() {
+        static Logger instance;
+        return instance;
+    }
+
+    void log(const std::string& message) {
+        std::lock_guard<std::mutex> lock(mutex); // Ensure thread safety
+
+        if (logFile.is_open()) {
+            logFile << message << std::endl;
+        }
+    }
+
+private:
+    std::ofstream logFile;
+    std::mutex mutex;
+};
 
 __declspec(dllexport) void __stdcall MyDetoursInitializationFunction(void)
 {
     // This function serves as the entry point for Detours
     // Perform any initialization or setup required for your hooks
     std::cerr << "merda" << std::endl;
+    Logger& logger = Logger::getInstance();
+    logger.log("MyDetoursInitializationFunction");
 }
 
 // Define a typedef for the original function signature
@@ -33,7 +77,7 @@ BOOL WINAPI MyQueryFullProcessImageNameW(
     
     // Call the original function using Detours
     QueryFullProcessImageNameW_t originalFunction =
-        (QueryFullProcessImageNameW_t)DetourFindFunction("kernelbase.dll", "QueryFullProcessImageNameW");
+        (QueryFullProcessImageNameW_t)DetourFindFunction("KernelBase.dll", "QueryFullProcessImageNameW");
 
     if (originalFunction) {
 
@@ -46,83 +90,47 @@ BOOL WINAPI MyQueryFullProcessImageNameW(
     // Handle if the original function cannot be found
     return ret;
 }
-/*
-void BeginRedirect(LPVOID);
 
-#define SIZE 6
-QueryFullProcessImageNameW_t pOrigMBAddress = NULL;
-BYTE oldBytes[SIZE] = { 0 };
-BYTE JMP[SIZE] = { 0 };
-DWORD oldProtect, myProtect = PAGE_EXECUTE_READWRITE;
-
-INT APIENTRY DllMain(HMODULE hDLL, DWORD Reason, LPVOID Reserved)
-{
-    switch (Reason)
-    {
-    case DLL_PROCESS_ATTACH:
-        pOrigMBAddress = (QueryFullProcessImageNameW_t)
-            GetProcAddress(GetModuleHandle(L"kernelbase.dll"),
-                "QueryFullProcessImageNameW");
-        if (pOrigMBAddress != NULL)
-            BeginRedirect(MyQueryFullProcessImageNameW);
-        break;
-    case DLL_PROCESS_DETACH:
-        memcpy(pOrigMBAddress, oldBytes, SIZE);
-    case DLL_THREAD_ATTACH:
-    case DLL_THREAD_DETACH:
-        break;
-    }
-    return TRUE;
+#define ASSERT_GOOD(_r, _m) \
+{\
+if(!(_r)){\
+std::cerr << "ERROR " << (_m) << std::endl;\
+logger.log(_m);\
+return (_r);\
+}\
 }
-
-void BeginRedirect(LPVOID newFunction)
-{
-    BYTE tempJMP[SIZE] = { 0xE9, 0x90, 0x90, 0x90, 0x90, 0xC3 };
-    memcpy(JMP, tempJMP, SIZE);
-    DWORD JMPSize = ((DWORD)newFunction - (DWORD)pOrigMBAddress - 5);
-    VirtualProtect((LPVOID)pOrigMBAddress, SIZE,
-        PAGE_EXECUTE_READWRITE, &oldProtect);
-    memcpy(oldBytes, pOrigMBAddress, SIZE);
-    memcpy(&JMP[1], &JMPSize, 4);
-    memcpy(pOrigMBAddress, JMP, SIZE);
-    VirtualProtect((LPVOID)pOrigMBAddress, SIZE, oldProtect, NULL);
-}
-*/
 
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved)
 {
+    Logger& logger = Logger::getInstance();
+
     if (DetourIsHelperProcess()) {
         return TRUE;
     }
-    if (ul_reason_for_call == DLL_PROCESS_ATTACH) {
-        DetourRestoreAfterWith();
-        DisableThreadLibraryCalls(hModule);
+    if (ul_reason_for_call == DLL_PROCESS_ATTACH)
+    {
+        auto ret = DetourRestoreAfterWith();
+        ASSERT_GOOD(ret, "DetourRestoreAfterWith");
+        ret = DisableThreadLibraryCalls(hModule);
+        ASSERT_GOOD(ret, "DisableThreadLibraryCalls");
         // Initialize Detours
-        DetourTransactionBegin();
-        DetourUpdateThread(GetCurrentThread());
-        //DetourAttach(&(PVOID&)QueryFullProcessImageNameW, MyQueryFullProcessImageNameW);
-        funcToDetour = (QueryFullProcessImageNameW_t)
-            GetProcAddress(GetModuleHandle(L"kernelbase.dll"),
-                "QueryFullProcessImageNameW");
-        DetourAttach(&(PVOID&)funcToDetour, MyQueryFullProcessImageNameW);
-        auto error = DetourTransactionCommit();
-
-        if (error == NO_ERROR) {
-            printf("simple" DETOURS_STRINGIFY(DETOURS_BITS) ".dll:"
-                " Detoured SleepEx().\n");
-        }
-        else {
-            printf("simple" DETOURS_STRINGIFY(DETOURS_BITS) ".dll:"
-                " Error detouring SleepEx(): %ld\n", error);
-        }
+        auto stt = DetourTransactionBegin();
+        ASSERT_GOOD((stt == STATUS_SUCCESS), "DetourTransactionBegin");
+        stt = DetourUpdateThread(GetCurrentThread());
+        ASSERT_GOOD((stt == STATUS_SUCCESS), "DetourUpdateThread");
+        funcToDetour = QueryFullProcessImageNameW;
+        stt = DetourAttach(&(PVOID&)funcToDetour, MyQueryFullProcessImageNameW);
+        ASSERT_GOOD((stt == STATUS_SUCCESS), "DetourAttach");
+        stt = DetourTransactionCommit();
+        ASSERT_GOOD((stt == STATUS_SUCCESS), "DetourTransactionCommit");
     }
 
     if (ul_reason_for_call == DLL_PROCESS_DETACH) {
         // Uninitialize Detours
         DetourTransactionBegin();
         DetourUpdateThread(GetCurrentThread());
-        //DetourDetach(&(PVOID&)QueryFullProcessImageNameW, MyQueryFullProcessImageNameW);
-        DetourDetach(&(PVOID&)funcToDetour, MyQueryFullProcessImageNameW);
+        DetourDetach(&(PVOID&)QueryFullProcessImageNameW, MyQueryFullProcessImageNameW);
+        //DetourDetach(&(PVOID&)funcToDetour, MyQueryFullProcessImageNameW);
         DetourTransactionCommit();
     }
 

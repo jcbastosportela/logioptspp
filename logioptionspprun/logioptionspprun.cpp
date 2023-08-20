@@ -30,7 +30,7 @@ DWORD GetProcessIdByName(const wchar_t* processName) {
 }
 
 
-int _main()
+int main()
 {
     STARTUPINFO si;
     PROCESS_INFORMATION pi;
@@ -48,8 +48,8 @@ int _main()
 
     WCHAR la[] = TEXT("C:\\Program Files\\LogiOptionsPlus\\logioptionsplus_agent.exe");
     //WCHAR la[] = TEXT("C:\\windows\\notepad.exe");
-    //CHAR dllPath[] = "C:\\Users\\jcbas\\Projects\\logioptionspp\\logioptionspp\\x64\\Debug\\logioptionspp.dll";  // Replace with your DLL's path
-    CHAR dllPath[] = "C:\\Program Files\\LogiOptionsPlus\\logioptionspp.dll";  // Replace with your DLL's path
+    CHAR dllPath[] = "C:\\Users\\jcbas\\Projects\\logioptionspp\\logioptionspp\\x64\\Debug\\logioptionspp.dll";  // Replace with your DLL's path
+    //CHAR dllPath[] = "C:\\Program Files\\LogiOptionsPlus\\logioptionspp.dll";  // Replace with your DLL's path
     LPCSTR paths[] = {dllPath};
     //const char* dllDetouredPath = "C:\\Windows\\System32\\KernelBase.dll";  // Replace with your DLL's path
     BOOL ret = DetourCreateProcessWithDlls(
@@ -57,7 +57,7 @@ int _main()
         la,
         NULL,
         NULL, 
-        TRUE,
+        FALSE,
         CREATE_DEFAULT_ERROR_MODE ,
         NULL,
         NULL,
@@ -71,7 +71,7 @@ int _main()
     return 0;
 }
 
-int main() {
+int _main() {
     const wchar_t* targetProcessName = L"logioptionsplus_agent.exe";  // Note the 'L' prefix for wide-character string
     DWORD processId = GetProcessIdByName(targetProcessName);
     std::cout << "The " << targetProcessName << " process id is " << (int)processId << std::endl;
