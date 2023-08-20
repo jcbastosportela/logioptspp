@@ -13,7 +13,7 @@ class Logger {
 private:
     Logger() {
         // Open the log file for writing
-        logFile.open("log.txt", std::ios::app);
+        //logFile.open("log.txt", std::ios::app);
     }
 
     ~Logger() {
@@ -36,8 +36,11 @@ public:
     void log(const std::string& message) {
         std::lock_guard<std::mutex> lock(mutex); // Ensure thread safety
 
+        logFile.open("log.txt", std::ios::app);
+
         if (logFile.is_open()) {
             logFile << message << std::endl;
+            logFile.close();
         }
     }
 
@@ -109,6 +112,8 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
     }
     if (ul_reason_for_call == DLL_PROCESS_ATTACH)
     {
+        logger.log("DLL_PROCESS_ATTACH started");
+
         auto ret = DetourRestoreAfterWith();
         ASSERT_GOOD(ret, "DetourRestoreAfterWith");
         ret = DisableThreadLibraryCalls(hModule);
@@ -123,6 +128,8 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
         ASSERT_GOOD((stt == STATUS_SUCCESS), "DetourAttach");
         stt = DetourTransactionCommit();
         ASSERT_GOOD((stt == STATUS_SUCCESS), "DetourTransactionCommit");
+
+        logger.log("DLL_PROCESS_ATTACH is ok");
     }
 
     if (ul_reason_for_call == DLL_PROCESS_DETACH) {
