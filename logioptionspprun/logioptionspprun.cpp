@@ -37,17 +37,11 @@ int main()
     ZeroMemory(&si, sizeof(STARTUPINFO));
     ZeroMemory(&pi, sizeof(PROCESS_INFORMATION));
     si.cb = sizeof(STARTUPINFO);
-    /*
-    char* DirPath = new char[MAX_PATH];
-    char* DLLPath = new char[MAX_PATH]; //testdll.dll
-    char* DetourPath = new char[MAX_PATH]; //detoured.dll
-    GetCurrentDirectory(MAX_PATH, DirPath);
-    sprintf_s(DLLPath, MAX_PATH, "%s\\testdll.dll", DirPath);
-    sprintf_s(DetourPath, MAX_PATH, "%s\\detoured.dll", DirPath);
-    */
 
     WCHAR la[] = TEXT("C:\\Program Files\\LogiOptionsPlus\\logioptionsplus_agent.exe");
     //WCHAR la[] = TEXT("C:\\windows\\notepad.exe");
+    //WCHAR la[] = TEXT("C:\\Users\\jcbas\\Projects\\logioptionspp\\logioptionspp\\x64\\Debug\\test_detour.exe");
+
     CHAR dllPath[] = "C:\\Users\\jcbas\\Projects\\logioptionspp\\logioptionspp\\x64\\Debug\\logioptionspp.dll";  // Replace with your DLL's path
     //CHAR dllPath[] = "C:\\Program Files\\LogiOptionsPlus\\logioptionspp.dll";  // Replace with your DLL's path
     LPCSTR paths[] = {dllPath};

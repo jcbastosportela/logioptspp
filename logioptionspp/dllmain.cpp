@@ -66,7 +66,16 @@ typedef BOOL(WINAPI* QueryFullProcessImageNameW_t)(
     PDWORD lpdwSize
     );
 
-QueryFullProcessImageNameW_t funcToDetour = (QueryFullProcessImageNameW_t)(0x00007FFCE2A1A320); //Set it at address to detour in
+// Define a typedef for the original function signature
+typedef BOOL(WINAPI* QueryFullProcessImageNameA_t)(
+    HANDLE hProcess,
+    DWORD dwFlags,
+    LPSTR lpExeName,
+    PDWORD lpdwSize
+    );
+
+QueryFullProcessImageNameW_t funcToDetour = (QueryFullProcessImageNameW_t)(0x00007FFB7F5CA320); //Set it at address to detour in
+QueryFullProcessImageNameA_t funcToDetourA = (QueryFullProcessImageNameA_t)(0x00007FFB7F5CA320); //Set it at address to detour in
 
 // Declare the custom function with the same signature
 BOOL WINAPI MyQueryFullProcessImageNameW(
@@ -77,19 +86,47 @@ BOOL WINAPI MyQueryFullProcessImageNameW(
 )
 {
     BOOL ret = TRUE;
+    Logger::getInstance().log("MyQueryFullProcessImageNameW");
     
     // Call the original function using Detours
-    QueryFullProcessImageNameW_t originalFunction =
+    /*QueryFullProcessImageNameW_t originalFunction =
         (QueryFullProcessImageNameW_t)DetourFindFunction("KernelBase.dll", "QueryFullProcessImageNameW");
 
     if (originalFunction) {
 
         ret = originalFunction(hProcess, dwFlags, lpExeName, lpdwSize);
-    }
+    }*/
 
     wcsncpy_s(lpExeName, *lpdwSize, L"c:\\bla\\chrome.exe\0", *lpdwSize);
     *lpdwSize = wcslen(lpExeName);
     
+    // Handle if the original function cannot be found
+    return ret;
+}
+
+// Declare the custom function with the same signature
+BOOL WINAPI MyQueryFullProcessImageNameA(
+    HANDLE hProcess,
+    DWORD dwFlags,
+    LPSTR lpExeName,
+    PDWORD lpdwSize
+)
+{
+    BOOL ret = TRUE;
+    Logger::getInstance().log("MyQueryFullProcessImageNameA");
+
+    // Call the original function using Detours
+    /*QueryFullProcessImageNameA_t originalFunction =
+        (QueryFullProcessImageNameA_t)DetourFindFunction("KernelBase.dll", "QueryFullProcessImageNameA");
+
+    if (originalFunction) {
+
+        ret = originalFunction(hProcess, dwFlags, lpExeName, lpdwSize);
+    }*/
+
+    strncpy_s(lpExeName, *lpdwSize, "c:\\bla\\chrome.exe\0", *lpdwSize);
+    *lpdwSize = strlen(lpExeName);
+
     // Handle if the original function cannot be found
     return ret;
 }
@@ -113,8 +150,8 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
     if (ul_reason_for_call == DLL_PROCESS_ATTACH)
     {
         logger.log("DLL_PROCESS_ATTACH started");
-
-        auto ret = DetourRestoreAfterWith();
+        bool ret;
+        ret = DetourRestoreAfterWith();
         ASSERT_GOOD(ret, "DetourRestoreAfterWith");
         ret = DisableThreadLibraryCalls(hModule);
         ASSERT_GOOD(ret, "DisableThreadLibraryCalls");
@@ -124,20 +161,28 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
         stt = DetourUpdateThread(GetCurrentThread());
         ASSERT_GOOD((stt == STATUS_SUCCESS), "DetourUpdateThread");
         funcToDetour = QueryFullProcessImageNameW;
+        funcToDetourA = QueryFullProcessImageNameA;
+        logger.log("Address of QueryFullProcessImageNameW is " + std::to_string((unsigned long int)funcToDetour));
+        logger.log("Address of QueryFullProcessImageNameA is " + std::to_string((unsigned long int)funcToDetourA));
         stt = DetourAttach(&(PVOID&)funcToDetour, MyQueryFullProcessImageNameW);
-        ASSERT_GOOD((stt == STATUS_SUCCESS), "DetourAttach");
+        ASSERT_GOOD((stt == STATUS_SUCCESS), "DetourAttach MyQueryFullProcessImageNameW");
+        stt = DetourAttach(&(PVOID&)funcToDetourA, MyQueryFullProcessImageNameA);
+        ASSERT_GOOD((stt == STATUS_SUCCESS), "DetourAttach MyQueryFullProcessImageNameA");
         stt = DetourTransactionCommit();
         ASSERT_GOOD((stt == STATUS_SUCCESS), "DetourTransactionCommit");
 
         logger.log("DLL_PROCESS_ATTACH is ok");
+        /*WCHAR name[1000];
+        DWORD size = 1000;
+        QueryFullProcessImageNameW(0, 0, name, &size);*/
     }
 
     if (ul_reason_for_call == DLL_PROCESS_DETACH) {
         // Uninitialize Detours
         DetourTransactionBegin();
         DetourUpdateThread(GetCurrentThread());
-        DetourDetach(&(PVOID&)QueryFullProcessImageNameW, MyQueryFullProcessImageNameW);
-        //DetourDetach(&(PVOID&)funcToDetour, MyQueryFullProcessImageNameW);
+        DetourDetach(&(PVOID&)funcToDetour, MyQueryFullProcessImageNameW);
+        DetourDetach(&(PVOID&)funcToDetourA, MyQueryFullProcessImageNameA);
         DetourTransactionCommit();
     }
 
