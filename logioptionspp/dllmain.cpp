@@ -121,7 +121,6 @@ BOOL WINAPI MyQueryFullProcessImageNameW(
     wcsncpy_s(lpExeName, *lpdwSize, L"c:\\bla\\chrome.exe\0", *lpdwSize);
     *lpdwSize = wcslen(lpExeName);
 
-    // Handle if the original function cannot be found
     return ret;
 }
 
@@ -147,7 +146,6 @@ BOOL WINAPI MyQueryFullProcessImageNameA(
     strncpy_s(lpExeName, *lpdwSize, "c:\\bla\\chrome.exe\0", *lpdwSize);
     *lpdwSize = strlen(lpExeName);
 
-    // Handle if the original function cannot be found
     return ret;
 }
 
