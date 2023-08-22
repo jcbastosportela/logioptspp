@@ -1,3 +1,5 @@
+![example workflow](https://github.com/jcbastosportela/logioptspp/actions/workflows/msbuild.yml/badge.svg)
+
 # !!! Work in progress !!!
 This repo is almost fulfilling it's purpose but the code is a mess, full of hardcoded paths!
 
@@ -35,7 +37,6 @@ Currently I am more focused in making 1. to work.
 # Projects on the solution
 - __logioptionspp__: "Logitech Options Plus Plus" the interceptor DLL
 - __logioptionspprun__: "Logitech Options Plus Plus Runner" the executable responsible for preloading (inject) the library on `logioptionsplus_agent.exe`
-- __test_detour__: a simple client user of `QueryFullProcessImageNameW` so I can test if the inteceptor and preloader are working
 - __Detours-main__: a copy of the master from https://github.com/microsoft/Detours at some point (I know, I could have used submodules...)
 
 # Tools I am using
