@@ -3,7 +3,6 @@
 #include <winnt.h>
 #include <detours.h>
 #include <iostream>
-#include <ntstatus.h> // Include the header for NTSTATUS values
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -168,10 +167,10 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
         */
         // Initialize Detours
         auto stt = DetourTransactionBegin();
-        ASSERT_GOOD((stt == STATUS_SUCCESS), "DetourTransactionBegin");
+        ASSERT_GOOD((stt == NO_ERROR), "DetourTransactionBegin");
 
         stt = DetourUpdateThread(GetCurrentThread());
-        ASSERT_GOOD((stt == STATUS_SUCCESS), "DetourUpdateThread");
+        ASSERT_GOOD((stt == NO_ERROR), "DetourUpdateThread");
 
         // NOTE: the line below will not work as it will get from kernel32.dll instead of kernelbase.dll
         // funcToDetour = QueryFullProcessImageNameW;
@@ -184,13 +183,13 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
         // logger.log("Address of QueryFullProcessImageNameA is " + std::to_string((unsigned long int)funcToDetourA));
 
         stt = DetourAttach(&(PVOID &)funcToDetour, MyQueryFullProcessImageNameW);
-        ASSERT_GOOD((stt == STATUS_SUCCESS), "DetourAttach MyQueryFullProcessImageNameW");
+        ASSERT_GOOD((stt == NO_ERROR), "DetourAttach MyQueryFullProcessImageNameW");
 
         // stt = DetourAttach(&(PVOID&)funcToDetourA, MyQueryFullProcessImageNameA);
-        // ASSERT_GOOD((stt == STATUS_SUCCESS), "DetourAttach MyQueryFullProcessImageNameA");
+        // ASSERT_GOOD((stt == NO_ERROR ), "DetourAttach MyQueryFullProcessImageNameA");
 
         stt = DetourTransactionCommit();
-        ASSERT_GOOD((stt == STATUS_SUCCESS), "DetourTransactionCommit");
+        ASSERT_GOOD((stt == NO_ERROR), "DetourTransactionCommit");
 
         logger.log("DLL_PROCESS_ATTACH is ok");
     }
@@ -207,16 +206,16 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
         // Initialize Detours
         // Uninitialize Detours
         auto stt = DetourTransactionBegin();
-        ASSERT_GOOD((stt == STATUS_SUCCESS), "DetourTransactionBegin");
+        ASSERT_GOOD((stt == NO_ERROR ), "DetourTransactionBegin");
         stt = DetourUpdateThread(GetCurrentThread());
-        ASSERT_GOOD((stt == STATUS_SUCCESS), "DetourUpdateThread");
+        ASSERT_GOOD((stt == NO_ERROR ), "DetourUpdateThread");
         funcToDetour = QueryFullProcessImageNameW;
         stt = DetourDetach(&(PVOID &)funcToDetour, MyQueryFullProcessImageNameW);
-        ASSERT_GOOD((stt == STATUS_SUCCESS), "DetourAttach MyQueryFullProcessImageNameW");
+        ASSERT_GOOD((stt == NO_ERROR ), "DetourAttach MyQueryFullProcessImageNameW");
         // stt = DetourDetach(&(PVOID&)funcToDetourA, MyQueryFullProcessImageNameA);
-        // ASSERT_GOOD((stt == STATUS_SUCCESS), "DetourAttach MyQueryFullProcessImageNameA");
+        // ASSERT_GOOD((stt == NO_ERROR ), "DetourAttach MyQueryFullProcessImageNameA");
         stt = DetourTransactionCommit();
-        ASSERT_GOOD((stt == STATUS_SUCCESS), "DetourTransactionCommit");
+        ASSERT_GOOD((stt == NO_ERROR ), "DetourTransactionCommit");
 
         logger.log("DLL_PROCESS_DETACH is ok");
     }
