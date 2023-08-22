@@ -7,6 +7,9 @@ name: MSBuild
 
 on:
   push:
+    paths-ignore:
+        - '.gitignore'
+        - '*.md'
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
