@@ -1,4 +1,4 @@
-![example workflow](https://github.com/jcbastosportela/logioptspp/blob/jcbastosportela-addin-github-action-for-build/.github/workflows/msbuild.yml)
+![example workflow](https://github.com/jcbastosportela/logioptspp/actions/workflows/msbuild.yml/badge.svg)
 
 # !!! Work in progress !!!
 This repo is almost fulfilling it's purpose but the code is a mess, full of hardcoded paths!
