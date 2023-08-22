@@ -1,8 +1,8 @@
 # !!! Work in progress !!!
-This repo does mot yet fulfil it's purpose and the code is a mess, full of hardcoded paths that!
+This repo is almost fulfilling it's purpose but the code is a mess, full of hardcoded paths that!
 
 # What does this (will hopefully) do
-Will allow users of Logitech mice (mine is an MX Master 3) to enjoy smooth scrolling in all applications.
+Allow users of Logitech mice (mine is an MX Master 3) to enjoy smooth scrolling in all applications.
 
 ## The problem
 If you are here you may be irritated with the fact that your Logitech mouse on does smooth scrolling in certain applications.
@@ -43,9 +43,6 @@ Currently I am more focused in making 1. to work.
 - x64dbg (https://help.x64dbg.com/en/latest/index.html)
 
 # What is working
-The lib is being preloaded in `logioptionsplus_agent.exe`
+The lib is being preloaded in `logioptionsplus_agent.exe` and it thinks all applications are `chrome.exe`.
 
-# Why isn't this working
-The calls are not being intercepted. But when I try intercepting call made by the test application client of `QueryFullProcessImageNameW` I see the calls being intercepted. _Why aren't the calls form `logioptionsplus_agent.exe` being intercepted????_
-
-If you know about libraries preloading, specially using detours and have a clue why this doesn't work please let me know.
+For now you will need to adjust all paths manually before compilation and using it. Fell free to PR a configurable way.
