@@ -10,7 +10,6 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "logioptionspp", "logioption
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "logioptionspprun", "..\logioptionspprun\logioptionspprun.vcxproj", "{7B4BD691-1A30-44A3-ADE6-E0226D6D35E9}"
 	ProjectSection(ProjectDependencies) = postProject
-		{37489709-8054-4903-9C49-A79846049FC9} = {37489709-8054-4903-9C49-A79846049FC9}
 		{57230CFE-A6DA-431C-B744-11C9BB6B8113} = {57230CFE-A6DA-431C-B744-11C9BB6B8113}
 	EndProjectSection
 EndProject
