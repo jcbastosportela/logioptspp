@@ -1,5 +1,5 @@
 # !!! Work in progress !!!
-This repo is almost fulfilling it's purpose but the code is a mess, full of hardcoded paths that!
+This repo is almost fulfilling it's purpose but the code is a mess, full of hardcoded paths!
 
 # What does this (will hopefully) do
 Allow users of Logitech mice (mine is an MX Master 3) to enjoy smooth scrolling in all applications.
