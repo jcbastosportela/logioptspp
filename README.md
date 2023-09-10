@@ -1,12 +1,30 @@
 ![msbuild workflow](https://github.com/jcbastosportela/logioptspp/actions/workflows/msbuild.yml/badge.svg)
 
 # !!! Work in progress !!!
-This repo is almost fulfilling it's purpose but the code is a mess, full of hardcoded paths!
+This repo is almost fulfilling it's purpose but the code is a mess, but it is working.
 
-# What does this (will hopefully) do
+# What does this do
 Allow users of Logitech mice (mine is an MX Master 3) to enjoy smooth scrolling in all applications.
 
-## The problem
+# How to
+Compile the solution (or download bianries from the releases), create `config.ini` file next to the `logioptionspprun.exe` and `logioptionspp.dll`, like:
+```ini
+[General]
+MODE=PRELOAD
+LOGI_PATH=C:\Program Files\LogiOptionsPlus\logioptionsplus_agent.exe
+APPS_TO_MASK=devenv.exe, Code.exe
+```
+where `MODE` can be:
+- `PRELOAD` : use if `logioptionsplus_agent.exe` is not running and you want to start it with `logioptionspprun.exe`
+- `INJECT` : use if `logioptionsplus_agent.exe` already running and you just want to inject the DLL
+
+`LOGI_PATH` is the full path to the `logioptionsplus_agent.exe`
+
+`APPS_TO_MASK` is a comma "," sperated list of executables that you want to be treated as "chrome.exe", meaning, to receive smooth scrooling.
+
+Execute `logioptionspprun.exe` by double clicking it.
+
+## The problem that made me do this
 If you are here you may be irritated with the fact that your Logitech mouse on does smooth scrolling in certain applications.
 If you are wondering if it is Logitech's fault or if it is the applications' fault, let me assure you, it is Logitech's fault!
 
@@ -43,7 +61,3 @@ Currently I am more focused in making 1. to work.
 - MS Visual Studio 2022 Community (you know here to find this)
 - x64dbg (https://help.x64dbg.com/en/latest/index.html)
 
-# What is working
-The lib is being preloaded in `logioptionsplus_agent.exe` and it thinks all applications are `chrome.exe`.
-
-For now you will need to adjust all paths manually before compilation and using it. Fell free to PR a configurable way.
