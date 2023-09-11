@@ -14,16 +14,62 @@ using Logger = utils::Logger;
 
 auto& logger{Logger::getInstance()};
 
-constexpr wchar_t DEFAULT_INI[]{ L".\\conf.ini" };
-static std::vector<std::wstring>    appsToMaskW;
+namespace Ini {
+    constexpr wchar_t DEFAULT_INI[]{ L".\\conf.ini" };
+    namespace GeneralSection {
+        constexpr wchar_t NAME[]{ L"General" };
+        namespace Key {
+            constexpr wchar_t BLACKLIST_APPS[]{ L"BLACKLIST_APPS" };
+            constexpr wchar_t LOG_PATH[]{ L"LOG_PATH" };
+        }
+    }
+}
 
-#define ASSERT_GOOD(_r, _m)                             \
+static std::vector<std::wstring>    appsToBlacklist;    //!< keep a list of applications to blacklist from smoothing
+
+/**
+ * Helper to make some runtime assertions.
+ * \param _c    condition to assert
+ * \param _m    text message to print to logger
+ * \param _r    return value
+ */
+#define RETURN_VAL_IF_NOT(_c, _m, _r)                             \
     {                                                   \
-        if (!(_r))                                      \
+        if (!(_c))                                      \
         {                                               \
             std::cerr << "ERROR " << (_m) << std::endl; \
             logger.log(_m);              \
             return (_r);                                \
+        }                                               \
+    }
+
+ /**
+  * Helper to make some runtime assertions.
+  * \param _c    condition to assert
+  * \param _m    text message to print to logger
+  */
+#define RETURN_FALSE_IF_NOT(_c, _m)                             \
+    {                                                   \
+        if (!(_c))                                      \
+        {                                               \
+            std::cerr << "ERROR " << (_m) << std::endl; \
+            logger.log(_m);              \
+            return false;                                \
+        }                                               \
+    }
+
+  /**
+   * Helper to make some runtime assertions.
+   * \param _c    condition to assert
+   * \param _m    text message to print to logger
+   */
+#define RETURN_FALSE_IF(_c, _m)                             \
+    {                                                   \
+        if ((_c))                                      \
+        {                                               \
+            std::cerr << "ERROR " << (_m) << std::endl; \
+            logger.log(_m);              \
+            return false;                                \
         }                                               \
     }
 
@@ -44,12 +90,20 @@ typedef BOOL(WINAPI *QueryFullProcessImageNameW_t)(
     LPWSTR lpExeName,
     PDWORD lpdwSize);
 
-QueryFullProcessImageNameW_t funcToDetour = (QueryFullProcessImageNameW_t)(nullptr);  // Set it at address to detour in
-
-QueryFullProcessImageNameW_t realQueryFullProcessImageNameW = QueryFullProcessImageNameW;
+/**
+ * function pointer to the function to detour.
+ * 
+ * Needs to be done at runtime using DetourFindFunction because the line below will not
+ * work as it will get from kernel32.dll instead of kernelbase.dll
+ * 
+ * realQueryFullProcessImageNameW = QueryFullProcessImageNameW; // gets from kernel32.dll instead of kernelbase.dll
+ */
+QueryFullProcessImageNameW_t realQueryFullProcessImageNameW = (QueryFullProcessImageNameW_t)(nullptr);
 
 /**
- * .
+ * Checks if a T ends with a something.
+ * 
+ * T needs to support .length() and .compare()
  * 
  * \param exeName
  * \param appToMask
@@ -63,7 +117,15 @@ static bool endsWith(const T& fullString, const T& ending) {
     return false;
 }
 
-// Declare the custom function with the same signature
+/**
+ * Declare the custom function with the same signature
+ * 
+ * \param hProcess
+ * \param dwFlags
+ * \param lpExeName
+ * \param lpdwSize
+ * \return \c true if ok, \c false otherwise
+ */
 BOOL WINAPI MyQueryFullProcessImageNameW(
     HANDLE hProcess,
     DWORD dwFlags,
@@ -75,12 +137,12 @@ BOOL WINAPI MyQueryFullProcessImageNameW(
     // Call the original function using Detours
     ret = realQueryFullProcessImageNameW(hProcess, dwFlags, lpExeName, lpdwSize);
 
-    // check if the active application is to be masked
+    // check if the active application is NOT to be black listed (not force apply smooth)
     if (std::find_if(
-            appsToMaskW.begin(),
-            appsToMaskW.end(),
+            appsToBlacklist.begin(),
+            appsToBlacklist.end(),
             std::bind(endsWith<std::wstring>, std::wstring(lpExeName), std::placeholders::_1)
-        ) != appsToMaskW.end())
+        ) == appsToBlacklist.end()) // if is not on the list, so we smooth it
     {
         wcsncpy_s(lpExeName, *lpdwSize, L"c:\\bla\\chrome.exe\0", *lpdwSize);
         *lpdwSize = static_cast<std::remove_pointer<decltype(lpdwSize)>::type>(wcslen(lpExeName));
@@ -90,15 +152,36 @@ BOOL WINAPI MyQueryFullProcessImageNameW(
     return ret;
 }
 
-static int load_configs(HMODULE hModule)
+/**
+ * Gets the directory 
+ * 
+ * \param hModule   DLL handle
+ * \return Directory path of the DLL
+ */
+static std::filesystem::path getDllDirectory(HMODULE hModule)
 {
     constexpr size_t MAX_FILE_LEN{ 1000 };
     wchar_t dllPath[MAX_FILE_LEN];
     auto ret = GetModuleFileName(hModule, dllPath, MAX_FILE_LEN);
-    ASSERT_GOOD( (ret != 0), "GetModuleFileName");
+    if(ret == 0 )
+    {
+        logger.log("Failed GetModuleFileName with return " + std::to_string(ret));
+        return std::filesystem::path();
+    }
     auto dllDir = std::filesystem::absolute(std::filesystem::path(dllPath)).parent_path();
-    auto iniPath = dllDir / std::filesystem::path(DEFAULT_INI);
 
+    return dllDir;
+}
+
+
+/**
+ * Loads the configs from the INI file
+ * 
+ * \param iniPath   Path to the INI file
+ * \return 0 if good
+ */
+static int load_configs(const std::filesystem::path& iniPath)
+{
     auto trim = [](const std::wstring& str) -> std::wstring {
         size_t first = str.find_first_not_of(L" \t\r\n");
         size_t last = str.find_last_not_of(L" \t\r\n");
@@ -108,8 +191,9 @@ static int load_configs(HMODULE hModule)
         return str.substr(first, (last - first + 1));
         };
 
-    wchar_t buffer[1000];
-    if (0 != GetPrivateProfileString(L"General", L"LOG_PATH", L"", buffer, sizeof(buffer) / sizeof(wchar_t), iniPath.c_str()))
+    static wchar_t buffer[10000];   // static so goes to heap (!not thread safe!)
+    // TODO: we need to runtime check if the buffer was sufficient by look the return of GetPrivateProfileString
+    if (0 != GetPrivateProfileString(Ini::GeneralSection::NAME, Ini::GeneralSection::Key::LOG_PATH, L"", buffer, sizeof(buffer) / sizeof(wchar_t), iniPath.c_str()))
     {
         logger.setLogFilePath(std::wstring(buffer));
         logger.enable();
@@ -117,7 +201,7 @@ static int load_configs(HMODULE hModule)
 
     logger.log("load_configs");
 
-    if (0 != GetPrivateProfileString(L"General", L"APPS_TO_MASK", L"", buffer, sizeof(buffer) / sizeof(wchar_t), iniPath.c_str()))
+    if (0 != GetPrivateProfileString(Ini::GeneralSection::NAME, Ini::GeneralSection::Key::BLACKLIST_APPS, L"", buffer, sizeof(buffer) / sizeof(wchar_t), iniPath.c_str()))
     {
         // Create a wistringstream from the input wstring
         std::wistringstream wiss(buffer);
@@ -127,11 +211,11 @@ static int load_configs(HMODULE hModule)
         while (std::getline(wiss >> std::ws, token, L','))
         {
             auto app = trim(token);
-            appsToMaskW.push_back(app);
+            appsToBlacklist.push_back(app);
         }
 
         // Print the split substrings
-        for (const auto& substring : appsToMaskW) {
+        for (const auto& substring : appsToBlacklist) {
             logger.log(substring);
         }
     }
@@ -149,27 +233,26 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
     }
     if (ul_reason_for_call == DLL_PROCESS_ATTACH)
     {
-        load_configs(hModule);
+        auto dllDirPath = getDllDirectory(hModule);
+        RETURN_FALSE_IF(dllDirPath.empty(), "DetourTransactionBegin");
+
+        load_configs(dllDirPath / Ini::DEFAULT_INI);
 
         logger.log("DLL_PROCESS_ATTACH started");
 
         // Initialize Detours
         auto stt = DetourTransactionBegin();
-        ASSERT_GOOD((stt == NO_ERROR), "DetourTransactionBegin");
+        RETURN_FALSE_IF_NOT((stt == NO_ERROR), "DetourTransactionBegin");
 
         stt = DetourUpdateThread(GetCurrentThread());
-        ASSERT_GOOD((stt == NO_ERROR), "DetourUpdateThread");
+        RETURN_FALSE_IF_NOT((stt == NO_ERROR), "DetourUpdateThread");
 
-        /*
-        // NOTE: the line below will not work as it will get from kernel32.dll instead of kernelbase.dll
-        // funcToDetour = QueryFullProcessImageNameW;
-        */
         realQueryFullProcessImageNameW = (QueryFullProcessImageNameW_t)DetourFindFunction("KernelBase.dll", "QueryFullProcessImageNameW");
         stt = DetourAttach(&(PVOID&)realQueryFullProcessImageNameW, MyQueryFullProcessImageNameW);
-        ASSERT_GOOD((stt == NO_ERROR), "DetourAttach MyQueryFullProcessImageNameW");
+        RETURN_FALSE_IF_NOT((stt == NO_ERROR), "DetourAttach MyQueryFullProcessImageNameW");
 
         stt = DetourTransactionCommit();
-        ASSERT_GOOD((stt == NO_ERROR), "DetourTransactionCommit");
+        RETURN_FALSE_IF_NOT((stt == NO_ERROR), "DetourTransactionCommit");
 
         logger.log("DLL_PROCESS_ATTACH is ok");
     }
@@ -180,17 +263,16 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
         
         // Uninitialize Detours
         auto stt = DetourTransactionBegin();
-        ASSERT_GOOD((stt == NO_ERROR ), "DetourTransactionBegin");
+        RETURN_FALSE_IF_NOT((stt == NO_ERROR ), "DetourTransactionBegin");
         
         stt = DetourUpdateThread(GetCurrentThread());
-        ASSERT_GOOD((stt == NO_ERROR ), "DetourUpdateThread");
+        RETURN_FALSE_IF_NOT((stt == NO_ERROR ), "DetourUpdateThread");
         
-        funcToDetour = QueryFullProcessImageNameW;
-        stt = DetourDetach(&(PVOID &)funcToDetour, MyQueryFullProcessImageNameW);
-        ASSERT_GOOD((stt == NO_ERROR ), "DetourAttach MyQueryFullProcessImageNameW");
+        stt = DetourDetach(&(PVOID &)realQueryFullProcessImageNameW, MyQueryFullProcessImageNameW);
+        RETURN_FALSE_IF_NOT((stt == NO_ERROR ), "DetourAttach MyQueryFullProcessImageNameW");
 
         stt = DetourTransactionCommit();
-        ASSERT_GOOD((stt == NO_ERROR ), "DetourTransactionCommit");
+        RETURN_FALSE_IF_NOT((stt == NO_ERROR ), "DetourTransactionCommit");
 
         logger.log("DLL_PROCESS_DETACH is ok");
     }

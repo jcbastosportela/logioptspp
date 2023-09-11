@@ -10,17 +10,12 @@ Allow users of Logitech mice (mine is an MX Master 3) to enjoy smooth scrolling 
 Compile the solution (or download bianries from the releases), create `config.ini` file next to the `logioptionspprun.exe` and `logioptionspp.dll`, like:
 ```ini
 [General]
-MODE=PRELOAD
 LOGI_PATH=C:\Program Files\LogiOptionsPlus\logioptionsplus_agent.exe
-APPS_TO_MASK=devenv.exe, Code.exe
+BLACKLIST_APPS=explorer.exe, Taskmgr.exe
 ```
-where `MODE` can be:
-- `PRELOAD` : use if `logioptionsplus_agent.exe` is not running and you want to start it with `logioptionspprun.exe`
-- `INJECT` : use if `logioptionsplus_agent.exe` already running and you just want to inject the DLL
+where `LOGI_PATH` is the full path to the `logioptionsplus_agent.exe`
 
-`LOGI_PATH` is the full path to the `logioptionsplus_agent.exe`
-
-`APPS_TO_MASK` is a comma "," sperated list of executables that you want to be treated as "chrome.exe", meaning, to receive smooth scrooling.
+`BLACKLIST_APPS` is a comma "," sperated list of executables that you do NOT want to be treated as "chrome.exe", meaning, NOT to receive smooth scrooling. For example, `explorer.exe` and `Taskmgr.exe` are applications that feel a bit strange with the smooth scrool.
 
 Execute `logioptionspprun.exe` by double clicking it.
 

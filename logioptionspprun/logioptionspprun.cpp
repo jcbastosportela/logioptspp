@@ -56,11 +56,11 @@ static Arguments parseArgs(int argc, const char* const argv[]);
 /**
  * Inject the DLL by starting a thread on the target process.
  *
- * \param targetProcessName Name of the executable process
+ * \param processId         PID of the agent
  * \param dllPath           Path to the DLL to preload
  * \return 0 if good
  */
-static int injectWithThread(const wchar_t* targetProcessName, const wchar_t* dllPath);
+static int injectWithThread(DWORD processId, const wchar_t* dllPath);
 
 /**
  * Preload the process and start it
@@ -80,6 +80,10 @@ int main(int argc, char* argv[])
     auto logioptsagentCmd = std::wstring(DEFAULT_LOGI_PATH);
     std::filesystem::path iniFilePath = executablePath / std::filesystem::path(DEFAULT_INI);
     std::filesystem::path dllPath = executablePath / std::filesystem::path(DLL_NAME);
+
+    DWORD logioptionsagentProcessId = getProcessIdByName(
+        std::filesystem::path(logioptsagentCmd).filename().c_str()
+    );
 
     auto args = parseArgs(argc, argv);
 
@@ -107,7 +111,8 @@ int main(int argc, char* argv[])
     }
     else
     {
-        WritePrivateProfileString(L"General", L"MODE", isPreload ? L"PRELOAD" : L"INJECT", iniFilePath.c_str());
+        // when not defined in the INI we will guess what is best, basically, if agent not running preload
+        isPreload = (0 == logioptionsagentProcessId);
     }
 
     if (0 != GetPrivateProfileString(L"General", L"LOGI_PATH", L"", buffer, sizeof(buffer) / sizeof(wchar_t), iniFilePath.c_str()))
@@ -119,7 +124,7 @@ int main(int argc, char* argv[])
         WritePrivateProfileString(L"General", L"LOGI_PATH ", logioptsagentCmd.c_str(), iniFilePath.c_str());
     }
 
-    if (std::get<ArgIdx::MODE>(args).first)
+    if (std::get<ArgIdx::MODE>(args).first) // are we forcing a start method?
     {
         // only match 1st 3 letters
         isPreload = (std::get<ArgIdx::MODE>(args).second.rfind("PRE") == 0);
@@ -141,8 +146,7 @@ int main(int argc, char* argv[])
     }
     else // in any other case INJECT
     {
-        std::filesystem::path path(logioptsagentCmd);  // to get the executable name only
-        return injectWithThread(path.filename().c_str(), dllPath.c_str());
+        return injectWithThread(logioptionsagentProcessId, dllPath.c_str());
     }
 }
 
@@ -216,10 +220,8 @@ static DWORD getProcessIdByName(const wchar_t* processName)
 }
 
 // --------------------------------------------------------------------------------------
-static int injectWithThread(const wchar_t* targetProcessName, const wchar_t* dllPath)
+static int injectWithThread(DWORD processId, const wchar_t* dllPath)
 {
-    DWORD processId = getProcessIdByName(targetProcessName);
-
     // Open a handle to the target process (logioptionsplus_agent.exe)
     HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, processId);
 
