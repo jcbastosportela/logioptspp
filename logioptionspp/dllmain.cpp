@@ -222,7 +222,7 @@ static int load_configs(const std::filesystem::path& iniPath)
     logger.log("load_configs");
 
     // lazy lambda
-    auto get_app_filter_list = [&](constexpr wchar_t* key, std::vector<std::wstring>& appsFilterList)
+    auto get_app_filter_list = [&](const wchar_t* key, std::vector<std::wstring>& appsFilterList)
     {
         if (0 != GetPrivateProfileString(Ini::GeneralSection::NAME, key, L"", buffer, sizeof(buffer) / sizeof(wchar_t), iniPath.c_str()))
         {
@@ -238,7 +238,7 @@ static int load_configs(const std::filesystem::path& iniPath)
             }
 
             // Print the split substrings
-            logger.log("Applications in " + key + " are: ");
+            logger.log(std::wstring(L"Applications in ") + key + L" are: ");
             for (const auto& substring : appsFilterList) {
                 logger.log(substring);
             }
