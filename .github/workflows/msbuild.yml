@@ -48,4 +48,4 @@ jobs:
       working-directory: ${{env.GITHUB_WORKSPACE}}
       # Add additional options to the MSBuild command line here (like platform or verbosity level). 
       # See https://docs.microsoft.com/visualstudio/msbuild/msbuild-command-line-reference
-      run: msbuild /p:NoWarn=9999 /m /p:PrecompiledHeader=NotUsing /p:Configuration=${{env.BUILD_CONFIGURATION}} /p:Platform=${{env.SOLUTION_PLATFORM}} ${{env.SOLUTION_FILE_PATH}}
+      run: msbuild /m /p:NoWarn=LNK4281 /p:PrecompiledHeader=NotUsing /p:Configuration=${{env.BUILD_CONFIGURATION}} /p:Platform=${{env.SOLUTION_PLATFORM}} ${{env.SOLUTION_FILE_PATH}}
