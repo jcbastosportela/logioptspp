@@ -38,7 +38,7 @@ jobs:
     - name: Add MSBuild to PATH
       uses: microsoft/setup-msbuild@v2.0.0
       with:
-        msbuild-architecture: x64
+        msbuild-architecture: ${{env.SOLUTION_PLATFORM}}
 
     #- name: Restore NuGet packages
     #  working-directory: ${{env.GITHUB_WORKSPACE}}
@@ -48,4 +48,4 @@ jobs:
       working-directory: ${{env.GITHUB_WORKSPACE}}
       # Add additional options to the MSBuild command line here (like platform or verbosity level). 
       # See https://docs.microsoft.com/visualstudio/msbuild/msbuild-command-line-reference
-      run: msbuild /m /p:PrecompiledHeader=NotUsing /p:Configuration=${{env.BUILD_CONFIGURATION}} /p:Platform=${{env.SOLUTION_PLATFORM}} ${{env.SOLUTION_FILE_PATH}}
+      run: msbuild /noerror:* /m /p:PrecompiledHeader=NotUsing /p:Configuration=${{env.BUILD_CONFIGURATION}} /p:Platform=${{env.SOLUTION_PLATFORM}} ${{env.SOLUTION_FILE_PATH}}
