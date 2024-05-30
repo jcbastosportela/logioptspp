@@ -144,10 +144,10 @@ BOOL WINAPI MyQueryFullProcessImageNameW(
     {
         // check if the active application is to be white listed (force apply smooth)
         if (std::find_if(
-                appsToBlacklist.begin(),
-                appsToBlacklist.end(),
+                appsToWhitelist.begin(),
+                appsToWhitelist.end(),
                 std::bind(endsWith<std::wstring>, std::wstring(lpExeName), std::placeholders::_1)
-            ) != appsToBlacklist.end()) // if is not on the list, so we smooth it
+            ) != appsToWhitelist.end()) // if is not on the list, so we smooth it
         {
             wcsncpy_s(lpExeName, *lpdwSize, L"c:\\bla\\chrome.exe\0", *lpdwSize);
             *lpdwSize = static_cast<std::remove_pointer<decltype(lpdwSize)>::type>(wcslen(lpExeName));
