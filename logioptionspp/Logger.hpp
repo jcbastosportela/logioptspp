@@ -73,7 +73,6 @@ namespace utils
 
             if (!m_logFile.is_open())
             {
-                // TODO: remove hardcoded path
                 m_logFile.open(m_logFilePath, std::ios::app);
             }
 

@@ -20,12 +20,14 @@ namespace Ini {
         constexpr wchar_t NAME[]{ L"General" };
         namespace Key {
             constexpr wchar_t BLACKLIST_APPS[]{ L"BLACKLIST_APPS" };
+            constexpr wchar_t WHITELIST_APPS[]{ L"WHITELIST_APPS" };    // only one of WHITELIST_APPS or BLACKLIST_APPS shall be defined; WHITELIST_APPS preceeds
             constexpr wchar_t LOG_PATH[]{ L"LOG_PATH" };
         }
     }
 }
 
 static std::vector<std::wstring>    appsToBlacklist;    //!< keep a list of applications to blacklist from smoothing
+static std::vector<std::wstring>    appsToWhitelist;    //!< keep a list of applications to whitelist from smoothing
 
 /**
  * Helper to make some runtime assertions.
@@ -137,16 +139,34 @@ BOOL WINAPI MyQueryFullProcessImageNameW(
     // Call the original function using Detours
     ret = realQueryFullProcessImageNameW(hProcess, dwFlags, lpExeName, lpdwSize);
 
-    // check if the active application is NOT to be black listed (not force apply smooth)
-    if (std::find_if(
-            appsToBlacklist.begin(),
-            appsToBlacklist.end(),
-            std::bind(endsWith<std::wstring>, std::wstring(lpExeName), std::placeholders::_1)
-        ) == appsToBlacklist.end()) // if is not on the list, so we smooth it
+    // if the whitelisting is enabled, it preceeds
+    if(appsToWhitelist.size() > 0)
     {
-        wcsncpy_s(lpExeName, *lpdwSize, L"c:\\bla\\chrome.exe\0", *lpdwSize);
-        *lpdwSize = static_cast<std::remove_pointer<decltype(lpdwSize)>::type>(wcslen(lpExeName));
-        ret = true;
+        // check if the active application is to be white listed (force apply smooth)
+        if (std::find_if(
+                appsToWhitelist.begin(),
+                appsToWhitelist.end(),
+                std::bind(endsWith<std::wstring>, std::wstring(lpExeName), std::placeholders::_1)
+            ) != appsToWhitelist.end()) // if is not on the list, so we smooth it
+        {
+            wcsncpy_s(lpExeName, *lpdwSize, L"c:\\bla\\chrome.exe\0", *lpdwSize);
+            *lpdwSize = static_cast<std::remove_pointer<decltype(lpdwSize)>::type>(wcslen(lpExeName));
+            ret = true;
+        }
+    }
+    else
+    {
+        // check if the active application is NOT to be black listed (not force apply smooth)
+        if (std::find_if(
+                appsToBlacklist.begin(),
+                appsToBlacklist.end(),
+                std::bind(endsWith<std::wstring>, std::wstring(lpExeName), std::placeholders::_1)
+            ) == appsToBlacklist.end()) // if is not on the list, so we smooth it
+        {
+            wcsncpy_s(lpExeName, *lpdwSize, L"c:\\bla\\chrome.exe\0", *lpdwSize);
+            *lpdwSize = static_cast<std::remove_pointer<decltype(lpdwSize)>::type>(wcslen(lpExeName));
+            ret = true;
+        }
     }
 
     return ret;
@@ -201,24 +221,35 @@ static int load_configs(const std::filesystem::path& iniPath)
 
     logger.log("load_configs");
 
-    if (0 != GetPrivateProfileString(Ini::GeneralSection::NAME, Ini::GeneralSection::Key::BLACKLIST_APPS, L"", buffer, sizeof(buffer) / sizeof(wchar_t), iniPath.c_str()))
+    // lazy lambda
+    auto get_app_filter_list = [&](const wchar_t* key, std::vector<std::wstring>& appsFilterList)
     {
-        // Create a wistringstream from the input wstring
-        std::wistringstream wiss(buffer);
-
-        // Split the wstring using ',' as the delimiter and trim spaces
-        std::wstring token;
-        while (std::getline(wiss >> std::ws, token, L','))
+        if (0 != GetPrivateProfileString(Ini::GeneralSection::NAME, key, L"", buffer, sizeof(buffer) / sizeof(wchar_t), iniPath.c_str()))
         {
-            auto app = trim(token);
-            appsToBlacklist.push_back(app);
-        }
+            // Create a wistringstream from the input wstring
+            std::wistringstream wiss(buffer);
 
-        // Print the split substrings
-        for (const auto& substring : appsToBlacklist) {
-            logger.log(substring);
+            // Split the wstring using ',' as the delimiter and trim spaces
+            std::wstring token;
+            while (std::getline(wiss >> std::ws, token, L','))
+            {
+                auto app = trim(token);
+                appsFilterList.push_back(app);
+            }
+
+            // Print the split substrings
+            logger.log(std::wstring(L"Applications in ") + key + L" are: ");
+            for (const auto& substring : appsFilterList) {
+                logger.log(substring);
+            }
         }
-    }
+    };
+
+    // check if there is blacklisting
+    get_app_filter_list(Ini::GeneralSection::Key::BLACKLIST_APPS, appsToBlacklist);
+
+    // check if there is whitelisting
+    get_app_filter_list(Ini::GeneralSection::Key::WHITELIST_APPS, appsToWhitelist);
 
     return 0;
 }

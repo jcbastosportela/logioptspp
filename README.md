@@ -13,9 +13,20 @@ Compile the solution (or download bianries from the releases), create `config.in
 LOGI_PATH=C:\Program Files\LogiOptionsPlus\logioptionsplus_agent.exe
 BLACKLIST_APPS=explorer.exe, Taskmgr.exe
 ```
+or
+```ini
+[General]
+LOGI_PATH=C:\Program Files\LogiOptionsPlus\logioptionsplus_agent.exe
+WHITELIST_APPS=vscode.exe, my_other_app.exe
+```
+
 where `LOGI_PATH` is the full path to the `logioptionsplus_agent.exe`
 
 `BLACKLIST_APPS` is a comma "," sperated list of executables that you do NOT want to be treated as "chrome.exe", meaning, NOT to receive smooth scrooling. For example, `explorer.exe` and `Taskmgr.exe` are applications that feel a bit strange with the smooth scrool.
+
+`WHITELIST_APPS` is a comma "," sperated list of executables that you want to be treated as "chrome.exe", meaning, to receive smooth scrooling.
+
+__NOTE__ that defining both `BLACKLIST_APPS` and `WHITELIST_APPS` is contradictory; defining one of them defines the selection mode; when both are defined it will function in whitelist mode.
 
 Execute `logioptionspprun.exe` by double clicking it.
 
