@@ -30,7 +30,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: windows-2019
 
     steps:
     - uses: actions/checkout@v3
@@ -39,7 +39,6 @@ jobs:
       uses: microsoft/setup-msbuild@v2.0.0
       with:
         msbuild-architecture: ${{env.SOLUTION_PLATFORM}}
-        vs-version: '[17.7,17.8)'
 
     #- name: Restore NuGet packages
     #  working-directory: ${{env.GITHUB_WORKSPACE}}
