@@ -1,23 +1,29 @@
-#ifndef __LOGGER__
-#define __LOGGER__
+#ifndef LOGGER_HPP
+#define LOGGER_HPP
 
 #include <Windows.h>
+#include <atomic>
 #include <mutex>
 #include <fstream>
+#include <string>
 
 namespace utils
 {
-    std::string convertWideToUTF8(const std::wstring& wideString)
+    inline std::string convertWideToUTF8(const std::wstring& wideString)
     {
-        int requiredSize = WideCharToMultiByte(CP_UTF8, 0, wideString.c_str(), -1, nullptr, 0, nullptr, nullptr);
+        if (wideString.empty()) {
+            return "";
+        }
+
+        int requiredSize = WideCharToMultiByte(CP_UTF8, 0, wideString.c_str(),
+            static_cast<int>(wideString.size()), nullptr, 0, nullptr, nullptr);
         if (requiredSize == 0) {
-            // Handle error
             return "";
         }
 
         std::string utf8String(requiredSize, '\0');
-        if (WideCharToMultiByte(CP_UTF8, 0, wideString.c_str(), -1, &utf8String[0], requiredSize, nullptr, nullptr) == 0) {
-            // Handle error
+        if (WideCharToMultiByte(CP_UTF8, 0, wideString.c_str(),
+            static_cast<int>(wideString.size()), &utf8String[0], requiredSize, nullptr, nullptr) == 0) {
             return "";
         }
 
@@ -30,14 +36,12 @@ namespace utils
         Logger() = default;
         ~Logger()
         {
-            // Close the log file if open
             if (m_logFile.is_open())
             {
                 m_logFile.close();
             }
         }
 
-        // Declare private copy constructor and assignment operator to prevent copies
         Logger(const Logger&) = delete;
         Logger& operator=(const Logger&) = delete;
 
@@ -50,26 +54,26 @@ namespace utils
 
         void setLogFilePath(const std::wstring& logFilePath)
         {
-            std::lock_guard<std::mutex> lock(m_mutex); // Ensure thread safety
+            std::lock_guard<std::mutex> lock(m_mutex);
             m_logFilePath = convertWideToUTF8(logFilePath);
         }
 
         void setLogFilePath(const std::string& logFilePath)
         {
-            std::lock_guard<std::mutex> lock(m_mutex); // Ensure thread safety
+            std::lock_guard<std::mutex> lock(m_mutex);
             m_logFilePath = logFilePath;
         }
 
         void log(const std::wstring& message)
         {
-            if (!m_isEnabled) { return; }
+            if (!m_isEnabled.load(std::memory_order_relaxed)) { return; }
             log(convertWideToUTF8(message));
         }
 
         void log(const std::string& message)
         {
-            if (!m_isEnabled) { return; }
-            std::lock_guard<std::mutex> lock(m_mutex); // Ensure thread safety
+            if (!m_isEnabled.load(std::memory_order_relaxed)) { return; }
+            std::lock_guard<std::mutex> lock(m_mutex);
 
             if (!m_logFile.is_open())
             {
@@ -84,19 +88,19 @@ namespace utils
         }
 
         void enable() {
-            m_isEnabled = true;
+            m_isEnabled.store(true, std::memory_order_relaxed);
         }
 
         void disable() {
-            m_isEnabled = false;
+            m_isEnabled.store(false, std::memory_order_relaxed);
         }
 
     private:
         std::ofstream m_logFile;
         std::mutex m_mutex;
         std::string m_logFilePath;
-        bool m_isEnabled{ false };
+        std::atomic<bool> m_isEnabled{ false };
     };
 }
 
-#endif // __LOGGER__
+#endif // LOGGER_HPP
