@@ -61,9 +61,9 @@ Currently I am more focused in making 1. to work.
 # Projects on the solution
 - __logioptionspp__: "Logitech Options Plus Plus" the interceptor DLL
 - __logioptionspprun__: "Logitech Options Plus Plus Runner" the executable responsible for preloading (inject) the library on `logioptionsplus_agent.exe`
-- __Detours-main__: a copy of the master from https://github.com/microsoft/Detours at some point (I know, I could have used submodules...)
+- __Detours-main__: submodule of the master from https://github.com/microsoft/Detours at some point
 
 # Tools I am using
-- MS Visual Studio 2022 Community (you know here to find this)
+- MS Visual Studio 2022 Community (you know where to find this)
 - x64dbg (https://help.x64dbg.com/en/latest/index.html)
 
