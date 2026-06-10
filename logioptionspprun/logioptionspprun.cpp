@@ -2,7 +2,7 @@
  * \file   logioptionspprun.cpp
  * \brief  Injects or Preloads "logioptionspp.dll" in the
  *          logioptionsplus_agent.exe
- * 
+ *
  * \author jcbastosportela
  * \date   September 2023
  *********************************************************************/
@@ -11,29 +11,25 @@
 #include <tlhelp32.h>   // to implement getProcessIdByName
 #include <iostream>
 #include <filesystem>   // handle paths
+#include <string>
 
 // Some constants
 constexpr wchar_t DEFAULT_INI[]{L"conf.ini"};
 constexpr wchar_t DEFAULT_LOGI_PATH[]{ L"C:\\Program Files\\LogiOptionsPlus\\logioptionsplus_agent.exe" };
 constexpr wchar_t DLL_NAME[]{ L"logioptionspp.dll" };
 
-// HELPERS for arguments
-template <typename T>
-using OptArg = std::pair<bool, T>;      // an optional argument is present (true/false) and has a value of a certain type
-using Arguments = std::tuple<
-    bool,                   // HELP
-    OptArg<std::string>,    // MODE
-    OptArg<std::string>,    // LOGI_PATH
-    OptArg<std::string>     // INI_CONF
->;
+// Parsed command-line arguments
+struct Arguments {
+    bool help = false;
 
-// arguments positions on the tuple
-enum ArgIdx : size_t
-{
-    HELP,
-    MODE,
-    LOGI_PATH,
-    INI_CONF,
+    bool modeSpecified = false;
+    std::string mode;
+
+    bool logiPathSpecified = false;
+    std::string logiPath;
+
+    bool iniConfSpecified = false;
+    std::string iniConf;
 };
 
 /**
@@ -87,19 +83,17 @@ int main(int argc, char* argv[])
 
     auto args = parseArgs(argc, argv);
 
-    if (std::get<ArgIdx::HELP>(args))
+    if (args.help)
     {
-        // do not do anything else when we are asked to show the help
         return 0;
     }
 
     // if an alternative INI is given
-    if (std::get<ArgIdx::INI_CONF>(args).first)
+    if (args.iniConfSpecified)
     {
-        // use the given path
         iniFilePath = std::filesystem::absolute(std::wstring(
-            std::get<ArgIdx::INI_CONF>(args).second.begin(),
-            std::get<ArgIdx::INI_CONF>(args).second.end()
+            args.iniConf.begin(),
+            args.iniConf.end()
         ));
     }
 
@@ -121,23 +115,22 @@ int main(int argc, char* argv[])
     }
     else
     {
-        WritePrivateProfileString(L"General", L"LOGI_PATH ", logioptsagentCmd.c_str(), iniFilePath.c_str());
+        WritePrivateProfileString(L"General", L"LOGI_PATH", logioptsagentCmd.c_str(), iniFilePath.c_str());
     }
 
-    if (std::get<ArgIdx::MODE>(args).first) // are we forcing a start method?
+    if (args.modeSpecified)
     {
-        // only match 1st 3 letters
-        isPreload = (std::get<ArgIdx::MODE>(args).second.rfind("PRE") == 0);
+        isPreload = (args.mode.rfind("PRE") == 0);
         WritePrivateProfileString(L"General", L"MODE", isPreload ? L"PRELOAD" : L"INJECT", iniFilePath.c_str());
     }
 
-    if (std::get<ArgIdx::LOGI_PATH>(args).first)
+    if (args.logiPathSpecified)
     {
         logioptsagentCmd = std::wstring(
-            std::get<ArgIdx::LOGI_PATH>(args).second.begin(),
-            std::get<ArgIdx::LOGI_PATH>(args).second.end()
+            args.logiPath.begin(),
+            args.logiPath.end()
             );
-        WritePrivateProfileString(L"General", L"LOGI_PATH ", logioptsagentCmd.c_str(), iniFilePath.c_str());
+        WritePrivateProfileString(L"General", L"LOGI_PATH", logioptsagentCmd.c_str(), iniFilePath.c_str());
     }
 
     if (isPreload)
@@ -159,28 +152,45 @@ static Arguments parseArgs(int argc, const char* const argv[])
         std::cerr << "Usage: " << argv[0] << " [-m {PRELOAD|INJECT=INJECT}] [-p PATH] [-c CONF] [-h]" << std::endl;
     };
 
-    // Iterate through the arguments and parse them
     for (int i = 1; i < argc; i += 1) {
         std::string arg = argv[i];
 
         if (arg == "-h")
         {
             print_help();
-            std::get<ArgIdx::HELP>(args) = true;
+            args.help = true;
         }
         else if (arg == "-m") {
-            std::get<ArgIdx::MODE>(args).first = true;
-            std::get<ArgIdx::MODE>(args).second = argv[i + 1];
+            if (i + 1 >= argc) {
+                std::cerr << "Error: -m requires an argument" << std::endl;
+                print_help();
+                args.help = true;
+                break;
+            }
+            args.modeSpecified = true;
+            args.mode = argv[i + 1];
             i++;
         }
         else if (arg == "-p") {
-            std::get<ArgIdx::LOGI_PATH>(args).first = true;
-            std::get<ArgIdx::LOGI_PATH>(args).second = argv[i + 1];
+            if (i + 1 >= argc) {
+                std::cerr << "Error: -p requires an argument" << std::endl;
+                print_help();
+                args.help = true;
+                break;
+            }
+            args.logiPathSpecified = true;
+            args.logiPath = argv[i + 1];
             i++;
         }
         else if (arg == "-c") {
-            std::get<ArgIdx::INI_CONF>(args).first = true;
-            std::get<ArgIdx::INI_CONF>(args).second = argv[i + 1];
+            if (i + 1 >= argc) {
+                std::cerr << "Error: -c requires an argument" << std::endl;
+                print_help();
+                args.help = true;
+                break;
+            }
+            args.iniConfSpecified = true;
+            args.iniConf = argv[i + 1];
             i++;
         }
         else {
@@ -199,15 +209,15 @@ static DWORD getProcessIdByName(const wchar_t* processName)
 
     if (hSnapshot != INVALID_HANDLE_VALUE)
     {
-        PROCESSENTRY32W processEntry; // Note the 'W' suffix for the wide-character version
+        PROCESSENTRY32W processEntry;
         processEntry.dwSize = sizeof(PROCESSENTRY32W);
 
         if (Process32FirstW(hSnapshot, &processEntry))
         {
             do
             {
-                if (wcscmp(processEntry.szExeFile, processName) == 0)
-                { // Using wcscmp for wide-character strings
+                if (_wcsicmp(processEntry.szExeFile, processName) == 0)
+                {
                     processId = processEntry.th32ProcessID;
                     break;
                 }
@@ -222,45 +232,56 @@ static DWORD getProcessIdByName(const wchar_t* processName)
 // --------------------------------------------------------------------------------------
 static int injectWithThread(DWORD processId, const wchar_t* dllPath)
 {
-    // Open a handle to the target process (logioptionsplus_agent.exe)
-    HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, processId);
+    constexpr DWORD REQUIRED_ACCESS =
+        PROCESS_CREATE_THREAD | PROCESS_VM_OPERATION | PROCESS_VM_WRITE | PROCESS_QUERY_INFORMATION;
 
+    HANDLE hProcess = OpenProcess(REQUIRED_ACCESS, FALSE, processId);
     if (hProcess == NULL)
     {
         std::cerr << "Failed OpenProcess" << std::endl;
         return -1;
     }
 
-    LPVOID remoteMemory = VirtualAllocEx(hProcess, NULL, wcslen(dllPath), MEM_COMMIT, PAGE_READWRITE);
+    const SIZE_T dllPathBytes = (wcslen(dllPath) + 1) * sizeof(wchar_t);
+    LPVOID remoteMemory = VirtualAllocEx(hProcess, NULL, dllPathBytes, MEM_COMMIT, PAGE_READWRITE);
     if (remoteMemory == NULL)
     {
         std::cerr << "Failed VirtualAllocEx" << std::endl;
+        CloseHandle(hProcess);
         return -2;
     }
 
-    if (!WriteProcessMemory(hProcess, remoteMemory, dllPath, (wcslen(dllPath)+1)*sizeof(decltype(dllPath[0])), NULL))
+    if (!WriteProcessMemory(hProcess, remoteMemory, dllPath, dllPathBytes, NULL))
     {
         std::cerr << "Failed WriteProcessMemory" << std::endl;
+        VirtualFreeEx(hProcess, remoteMemory, 0, MEM_RELEASE);
+        CloseHandle(hProcess);
         return -3;
     }
 
     HANDLE hThread = CreateRemoteThread(hProcess, NULL, 0, (LPTHREAD_START_ROUTINE)LoadLibraryW, remoteMemory, 0, NULL);
-    if (hThread != NULL)
+    if (hThread == NULL)
     {
-        WaitForSingleObject(hThread, INFINITE);
-        CloseHandle(hThread);
+        std::cerr << "Failed CreateRemoteThread" << std::endl;
+        VirtualFreeEx(hProcess, remoteMemory, 0, MEM_RELEASE);
+        CloseHandle(hProcess);
+        return -4;
     }
+
+    WaitForSingleObject(hThread, INFINITE);
+    CloseHandle(hThread);
 
     if (!VirtualFreeEx(hProcess, remoteMemory, 0, MEM_RELEASE))
     {
         std::cerr << "Failed VirtualFreeEx" << std::endl;
-        return -4;
+        CloseHandle(hProcess);
+        return -5;
     }
 
     if (!CloseHandle(hProcess))
     {
         std::cerr << "Failed CloseHandle" << std::endl;
-        return -5;
+        return -6;
     }
 
     return 0;
