@@ -6,12 +6,9 @@
 name: MSBuild
 
 on:
-  push:
-    paths-ignore:
-        - '.gitignore'
-        - '*.md'
-    branches: [ "main" ]
   pull_request:
+    # Trigger on PR creation, updates, label changes, and merging (closed)
+    types: [opened, synchronize, reopened, labeled, unlabeled, closed]
     branches: [ "main" ]
   workflow_dispatch:
 
@@ -26,28 +23,111 @@ env:
   SOLUTION_PLATFORM: x64
 
 permissions:
-  contents: read
+  contents: write       # Required to create the GitHub Release
+  pull-requests: read   # Required to read PR labels
 
 jobs:
-  build:
+  # ==========================================
+  # JOB 1: Validate PR (Runs on active PRs)
+  # ==========================================
+  pr-validation:
+    # Only run this while the PR is open
+    if: github.event_name == 'pull_request' && github.event.action != 'closed'
     runs-on: windows-2022
-
+    
     steps:
-    - uses: actions/checkout@v6
-      with:
-        submodules: recursive
+      - name: Enforce Version Label
+        # Community Action: Fails the PR check if exactly 1 version label isn't present
+        uses: mheap/github-action-required-labels@v5.5.2
+        with:
+          mode: exactly
+          count: 1
+          labels: "major, minor, patch"
 
-    - name: Add MSBuild to PATH
-      uses: microsoft/setup-msbuild@v2.0.0
-      with:
-        msbuild-architecture: ${{env.SOLUTION_PLATFORM}}
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
-    #- name: Restore NuGet packages
-    #  working-directory: ${{env.GITHUB_WORKSPACE}}
-    #  run: nuget restore ${{env.SOLUTION_FILE_PATH}}
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v3
+        with:
+          msbuild-architecture: ${{env.SOLUTION_PLATFORM}}
 
-    - name: Build
-      working-directory: ${{env.GITHUB_WORKSPACE}}
-      # Add additional options to the MSBuild command line here (like platform or verbosity level). 
-      # See https://docs.microsoft.com/visualstudio/msbuild/msbuild-command-line-reference
-      run: msbuild /m /p:NoWarn=LNK4281 /p:PrecompiledHeader=NotUsing /p:Configuration=${{env.BUILD_CONFIGURATION}} /p:Platform=${{env.SOLUTION_PLATFORM}} ${{env.SOLUTION_FILE_PATH}}
+      - name: Build Validation
+        working-directory: ${{env.GITHUB_WORKSPACE}}
+        # Add additional options to the MSBuild command line here (like platform or verbosity level). 
+        # See https://docs.microsoft.com/visualstudio/msbuild/msbuild-command-line-reference
+        run: msbuild /m /p:NoWarn=LNK4281 /p:PrecompiledHeader=NotUsing /p:Configuration=${{env.BUILD_CONFIGURATION}} /p:Platform=${{env.SOLUTION_PLATFORM}} ${{env.SOLUTION_FILE_PATH}}
+
+
+  # ==========================================
+  # JOB 2: Create Release (Runs on merge)
+  # ==========================================
+  release:
+    # Only run this when the PR is successfully merged into main
+    if: github.event.pull_request.merged == true
+    runs-on: windows-2022
+    
+    steps:
+      - name: Checkout Main Branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.ref }} # Ensures we build the newly merged code
+          submodules: recursive
+
+      - name: Calculate Next Version
+        id: semver
+        # Community Action: Run native JavaScript to compute semantic version
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // 1. Fetch the latest release version
+            let latestRelease;
+            try {
+              latestRelease = await github.rest.repos.getLatestRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo
+              });
+            } catch (e) {
+              latestRelease = { data: { tag_name: 'v0.0.0' } }; // Fallback if no prior releases exist
+            }
+
+            // 2. Parse current version
+            const currentTag = latestRelease.data.tag_name.replace('v', '');
+            let [major, minor, patch] = currentTag.split('.').map(Number);
+            if (isNaN(major)) major = 0; if (isNaN(minor)) minor = 0; if (isNaN(patch)) patch = 0;
+
+            // 3. Read the label attached to the merged PR
+            const labels = context.payload.pull_request.labels.map(l => l.name);
+
+            // 4. Bump the version based on the label
+            if (labels.includes('major')) { major++; minor = 0; patch = 0; }
+            else if (labels.includes('minor')) { minor++; patch = 0; }
+            else if (labels.includes('patch')) { patch++; }
+            else { patch++; } // Failsafe
+
+            const newTag = `v${major}.${minor}.${patch}`;
+            console.log(`Bumping version to ${newTag}`);
+            core.setOutput('new_tag', newTag);
+
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v2.0.0
+        with:
+          msbuild-architecture: ${{env.SOLUTION_PLATFORM}}
+
+      - name: Build Release Binaries
+        working-directory: ${{env.GITHUB_WORKSPACE}}
+        # Add additional options to the MSBuild command line here (like platform or verbosity level). 
+        # See https://docs.microsoft.com/visualstudio/msbuild/msbuild-command-line-reference
+        run: msbuild /m /p:NoWarn=LNK4281 /p:PrecompiledHeader=NotUsing /p:Configuration=${{env.BUILD_CONFIGURATION}} /p:Platform=${{env.SOLUTION_PLATFORM}} ${{env.SOLUTION_FILE_PATH}}
+
+      - name: Create GitHub Release
+        # Community Action: Upload binaries and create the release page
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.semver.outputs.new_tag }}
+          generate_release_notes: true # Auto-generates changelog based on merged PRs
+          files: |
+            x64/Release/logioptionspp.dll
+            x64/Release/logioptionspprun.exe
