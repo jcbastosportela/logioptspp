@@ -124,10 +124,10 @@ jobs:
 
       - name: Create GitHub Release
         # Community Action: Upload binaries and create the release page
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.semver.outputs.new_tag }}
           generate_release_notes: true # Auto-generates changelog based on merged PRs
           files: |
-            x64/Release/logioptionspp.dll
-            x64/Release/logioptionspprun.exe
+            logioptionspp/x64/Release/logioptionspp.dll
+            logioptionspp/x64/Release/logioptionspprun.exe
