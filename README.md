@@ -1,8 +1,5 @@
 ![msbuild workflow](https://github.com/jcbastosportela/logioptspp/actions/workflows/msbuild.yml/badge.svg)
 
-# !!! Work in progress !!!
-This repo is almost fulfilling it's purpose but the code is a mess, but it is working.
-
 # What does this do
 Allow users of Logitech mice (mine is an MX Master 3) to enjoy smooth scrolling in all applications.
 
